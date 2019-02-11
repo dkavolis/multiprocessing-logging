@@ -1,3 +1,4 @@
+# -*- coding:utf-8 -*-
 # vim : fileencoding=UTF-8 :
 
 from __future__ import absolute_import, division, unicode_literals
@@ -8,11 +9,10 @@ import sys
 import threading
 import traceback
 
-
 try:
     import queue
 except ImportError:
-    import Queue as queue  # Python 2.
+    import Queue as queue  # type: ignore # Python 2.
 
 
 __version__ = '0.2.7'
@@ -58,16 +58,18 @@ class MultiProcessingHandler(logging.Handler):
         self.sub_handler.setFormatter(fmt)
 
     def _receive(self):
-        while not (self._is_closed and self.queue.empty()):
+        queue_is_empty = False
+        while not (self._is_closed and queue_is_empty):
             try:
                 record = self.queue.get(timeout=0.2)
                 self.sub_handler.emit(record)
+                queue_is_empty = self.queue.empty()
             except (KeyboardInterrupt, SystemExit):
                 raise
-            except EOFError:
+            except (EOFError, BrokenPipeError):
                 break
             except queue.Empty:
-                pass  # This periodically checks if the logger is closed.
+                queue_is_empty = True  # This periodically checks if the logger is closed.
             except:
                 traceback.print_exc(file=sys.stderr)
 
@@ -97,6 +99,8 @@ class MultiProcessingHandler(logging.Handler):
             self._send(s)
         except (KeyboardInterrupt, SystemExit):
             raise
+        except AssertionError:
+            pass
         except:
             self.handleError(record)
 
